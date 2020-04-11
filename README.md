@@ -407,51 +407,50 @@ void *buat_factorial()
 ```
 
 c). SOAL 4C
-```
-#define baca   0   //membaca ujung pipe//            
-     #define tulis  1   //menulis ujung pipe//            
-     #define input  0   //fd standar input//
-     #define output 1   //fd standar output//
+	```
+     #define baca   0   //membaca ujung pipe          
+     #define tulis  1   //menulis ujung pipe           
+     #define input  0   //fd standar input
+     #define output 1   //fd standar output
 
      int main(){
         int p1,p2,pfd[2];
 
-        //Membuat pipe//            
+        //Membuat pipe           
         if(pipe(pfd)==-1){                              
             perror(" ");
             exit(-1);}
 
-        //Membuat proses anak pertama//
+        //Membuat proses anak pertama
         if ((p1=fork())==-1){
             perror(" ");
             exit(-1);}
 
-        //Didalam parent//
+        //Didalam parent
         if (p1!=0){
-            //Membuat proses anak kedua//
+            //Membuat proses anak kedua
             if((p2=fork())==-1){
                 perror(" ");
                 exit(-1);}
-            //Masih didalam parent//
+            //Masih didalam parent
             if(p2!=0){
-                close(pfd[baca]);  //menutup pipe di parent//   
-                close(pfd[tulis]); //menyimpan file descriptor//    
-                wait((int*)0);     //menunggu proses anak mati//   
+                close(pfd[baca]);  //menutup pipe di parent   
+                close(pfd[tulis]); //menyimpan file descriptor   
+                wait((int*)0);     //menunggu proses anak mati   
                 wait((int*)0);}
             //Didalam proses anak kedua//    
             else{
-                close(input);  //menutup standar input//         
-                dup(pfd[baca]); //membaca akhir pipe agar menjadi standar input//     
-                close(pfd[baca]);  //menghapus I/O yang tidak diperlukan// 
+                close(input);  //menutup standar input         
+                dup(pfd[baca]); //membaca akhir pipe agar menjadi standar input  
+                close(pfd[baca]);  //menghapus I/O yang tidak diperlukan
                 close(pfd[tulis]);   
-                 execl("/usr/bin/wc","wc","-l",NULL);}} //menghitung banyak file dan folder//
-        //Didalam proses anak pertama//         
+                 execl("/usr/bin/wc","wc","-l",NULL);}} //menghitung banyak file dan folder
+        //Didalam proses anak pertama         
         else{
-            close(output); //menutup standar output//           
-            dup(pfd[tulis]);  //menulis akhir pipe agar menjadi standar output//    
-            close(pfd[baca]);  //menghapus I/O yang tidak diperlukan//   
+            close(output); //menutup standar output           
+            dup(pfd[tulis]);  //menulis akhir pipe agar menjadi standar output    
+            close(pfd[baca]);  //menghapus I/O yang tidak diperlukan   
             close(pfd[tulis]);     
-            execl("/bin/ls","ls","/home/oktarizka156/",NULL);} //mengeluarkan hasil banyak file dan folder pada direktori//
+            execl("/bin/ls","ls","/home/oktarizka156/",NULL);} //mengeluarkan hasil banyak file dan folder pada direktori
         exit (0);}
-      ```
-Pertama mendeklarasikan array pipe sebesar 2, lalu mendeklarasikan char yang berisi string perintah. Kemudian memanggil fungsi 'fork()' untuk membuat child process. Setelah itu gunakan fungsi 'wait()' agar child process selesai terlebih dahulu. Pada perintah 'wc -l' gunakan fungsi dup sehingga read end of pipe menjadi standar input, sedangkan pada perintah 'ls' gunakan fungsi dup sehingga write end of pipe menjadi standar output.
+	```
