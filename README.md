@@ -93,14 +93,13 @@ else
   folderFinish[x] += 32;
 }
 ```
-- untuk mengambil extension
+- membuat folder sesuai extension serta jika folder belum ada
 ```
-if(mkdir(folderFinish, 0777) == -1); //bikin folder sesuai ext, jika folder blm ada
-   char pathFinish[10000]; //membuat path tujuan yg source nya diambil dari argumen fungsi
-   snprintf(pathFinish, 10000, "%s/%s/%s", cwd, folderFinish, filename((char *)arg));
-   moveFile((char *)arg, pathFinish);
-   return NULL;
-}
+if(mkdir(folderFinish, 0777) == -1); 
+```
+- membuat path tujuan yg source nya diambil dari argumen fungsi
+```
+char pathFinish[10000]; 
 ```
 - fungsi untuk menjalankan perintah *
 ```
@@ -120,15 +119,8 @@ else
   folderFinish[x] += 32;
 }
 ```
-- untuk mengambil extension
+- fungsi untuk menjalankan perintah -d
 ```
-if(mkdir(folderFinish, 0777) == -1); //bikin folder sesuai ext, jika folder blm ada
-   char pathFinish[10000]; //membuat path tujuan yg source nya diambil dari argumen fungsi
-   char pathStart[10000]; //membuat path awal yg source nya diambil dari argumen fungsi
-   snprintf(pathStart, 10000, "%s/%s", cwd, (char *)arg);
-   snprintf(pathFinish, 10000, "%s/%s/%s", cwd, folderFinish, filename((char *)arg));
-   moveFile(pathStart, pathFinish);
-   return NULL;
 }
 
 void* command_d(void *arg)
@@ -147,14 +139,7 @@ void* command_d(void *arg)
     folderFinish[x] += 32;
 }
 
-    /*ambil extension*/                    
-    if(mkdir(folderFinish, 0777) == -1); //bikin folder sesuai ext, jika folder blm ada
-    char pathFinish[10000]; //membuat path tujuan yg source nya diambil dari argumen fungsi
-    char pathStart[10000]; //membuat path awal yg source nya diambil dari argumen fungsi
-    snprintf(pathStart, 10000, "%s/%s", tempcwd, (char *)arg);
-    snprintf(pathFinish, 10000, "%s/%s/%s", cwd, folderFinish, filename((char *)arg));
-    moveFile(pathStart, pathFinish);
-    return NULL;
+
 }
 ```
 - program utama
@@ -233,7 +218,9 @@ else if(!strcmp(argv[1], "-d"))
    }
 return 0;
 }
+
 ```
+Jadi jika disimpulkan codingan dari no 3 ini akan mengkategorian file/directory sesuai command , disini thread yg terbentuk sesuai dengan command, apabila command -f maka thread yg akan terbentuk sebanyak argumen nama file yg diinput setelahnya, jika command -d maka thread akan terbentuk sebanyak directory yg akan dikategorisasikan, jika command * maka thread yg akan terbentuk sebanding dengan banyak file yg ada di cwd.
 
 ### JAWABAN SOAL NOMOR EMPAT
 + [soal4a.c](https://github.com/stchffh/SoalShiftSISOP20_modul3_E03/blob/master/nomor4/soal4a.c)
@@ -408,35 +395,49 @@ void *buat_factorial()
 
 c). SOAL 4C
 	```
-	int main(){
-        int p1,p2,pfd[2];            
+     #define baca   0   //membaca ujung pipe          
+     #define tulis  1   //menulis ujung pipe           
+     #define input  0   //fd standar input
+     #define output 1   //fd standar output
+
+     int main(){
+        int p1,p2,pfd[2];
+
+        //Membuat pipe           
         if(pipe(pfd)==-1){                              
             perror(" ");
             exit(-1);}
+
+        //Membuat proses anak pertama
         if ((p1=fork())==-1){
             perror(" ");
             exit(-1);}
+
+        //Didalam parent
         if (p1!=0){
+            //Membuat proses anak kedua
             if((p2=fork())==-1){
                 perror(" ");
                 exit(-1);}
+            //Masih didalam parent
             if(p2!=0){
-                close(pfd[baca]);      
-                close(pfd[tulis]);     
-                wait((int*)0);        
+                close(pfd[baca]);  //menutup pipe di parent   
+                close(pfd[tulis]); //menyimpan file descriptor   
+                wait((int*)0);     //menunggu proses anak mati   
                 wait((int*)0);}
+            //Didalam proses anak kedua//    
             else{
-                close(input);           
-                dup(pfd[baca]);      
-                close(pfd[baca]);    
+                close(input);  //menutup standar input         
+                dup(pfd[baca]); //membaca akhir pipe agar menjadi standar input  
+                close(pfd[baca]);  //menghapus I/O yang tidak diperlukan
                 close(pfd[tulis]);   
-                execl("/usr/bin/wc","wc","-l",NULL);}}
+                 execl("/usr/bin/wc","wc","-l",NULL);}} //menghitung banyak file dan folder
+        //Didalam proses anak pertama         
         else{
-            close(output);           
-            dup(pfd[tulis]);      
-            close(pfd[baca]);     
+            close(output); //menutup standar output           
+            dup(pfd[tulis]);  //menulis akhir pipe agar menjadi standar output    
+            close(pfd[baca]);  //menghapus I/O yang tidak diperlukan   
             close(pfd[tulis]);     
-            execl("/bin/ls","ls","/home/oktarizka156/",NULL);}
+            execl("/bin/ls","ls","/home/oktarizka156/",NULL);} //mengeluarkan hasil banyak file dan folder pada direktori
         exit (0);}
 	```
-Pertama mendeklarasikan array pipe sebesar 2, lalu mendeklarasikan char yang berisi string perintah. Kemudian memanggil fungsi fork() untuk membuat child process. Setelah itu gunakan fungsi wait() agar child process selesai terlebih dahulu. Pada perintah wc -l gunakan fungsi dup sehingga read end of pipe menjadi stdin, sedangkan pada perintah ls gunakan fungsi dup sehingga write end of pipe menjadi stdout.
