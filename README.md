@@ -3,6 +3,431 @@
 - Sitti Chofifah                    05111840000039
 - Oktarizka Asviananda Nursanty     05111840000156
 
+
+### JAWABAN SOAL NOMOR DUA
++ [soal2](https://github.com/stchffh/SoalShiftSISOP20_modul3_E03/tree/master/nomor2)
+
+### PENJELASAN
+a) tapclient
+```
+void *finding()
+{
+    while(1)
+    {
+        printf("Waiting for player ...\n");
+        sleep(1);
+    }
+}
+
+void *playing(void *arg)
+{
+    while(1)
+    {
+        char ch = getchar();
+        if(ch == ' ') 
+        {
+            printf("hit !!\n");
+            send(*(int*) arg, &ch, sizeof(ch), 0);
+        }
+    }
+}
+/*int main disini kurang lebih seperti di modul, melakukan pengecekkan apakah client side dan server side terhubung*/
+int main(int argc, char const *argv[])
+{
+    struct sockaddr_in address;
+    int sock = 0, valread;
+    struct sockaddr_in serv_addr;
+    int addrlen = sizeof(address);
+    char buffer[1024] = {0};
+    
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        printf("\n Socket creation error\n");
+        return -1;
+    }
+
+    memset(&serv_addr, '0', sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
+
+    if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0)
+    {
+        printf("\nInvalid address/ Address not supported\n");
+        return -1;
+    }
+
+    if(connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
+    {
+        printf("\nConnection Failed\n");
+        return -1;
+    }
+    char cmd[1024], cmd2[1024], username[1024], pass[1024], temp[1024]; //declare array
+    /*fungsi untuk menampilkan screen 1, yaitu untuk melakukan login dan register*/
+    screen1:
+    printf("1. Login\n2. Register\nChoices : ");
+    scanf("%s", cmd);
+    if(strcmp(cmd, "login") == 0)
+    {
+        strcpy(username, "l ");
+        printf("Username : ");
+        getchar();
+        scanf("%[^\n]", username);
+        strcat(username, temp);
+        printf("Password : ");
+        getchar();
+        scanf("%[^\n]", pass);
+        strcat(username, "\t");
+        strcat(username, pass);
+        send(sock, username, strlen(username), 0);
+        int feedback;
+        read(sock, &feedback, sizeof(feedback));
+        if(feedback)
+        {
+            printf("login success\n");
+            send(sock, "sukses", 6, 0);
+            /*fungsi untuk menampilakn screen 2 yaitu find match dan logout*/
+            screen2:
+            printf("1. Find Match\n2. Logout\nChoices : ");
+            scanf("%s", cmd2);
+            /*jika user melakukan logout maka akan kembali ke screen 1*/
+            if(strcmp(cmd2, "logout") == 0)
+            {
+                send(sock, cmd2, strlen(cmd2), 0);
+                goto screen1;
+            }
+            /*jika user memiih find match maka permainan akan dimulai, int start disini akan passing value
+            ke server sehingga server bisa memulai game, saat game dimulai kita akan initialisasi health =100
+            dan akan berkuran -10 per hit nya yang sudah dijelaskan pada srver side, jika health menyentuh nilai -1
+            maka client akan passing value ke server untuk menghentikan permainan, kemudian setelah game berakhir s
+            server akan melakukan pengecekkan nilai health sehingga di client side akan terlihat siapa yg menang dan siapa yg
+            kalah, health pemain yg kurang dari atau samadengan 0 yg menjadi pemain kalah*/
+            else if(strcmp(cmd2, "find") == 0)
+            {
+                int start;
+                send(sock, cmd2, strlen(cmd2), 0);
+                pthread_t th;
+                pthread_create(&th, NULL, finding, NULL);
+                read(sock, &start, sizeof(start));
+                pthread_cancel(th);
+                printf("Game dimulai silahkan \e[3mtap tap\e[0m secepat mungkin !!\n");
+                struct termios prev, cur;
+                tcgetattr(0, &prev);
+                cur = prev;
+                cur.c_lflag &= -ICANON;
+                cur.c_lflag &= -ECHO;
+                tcsetattr(0, TCSANOW, &cur);
+                pthread_t th2;
+                pthread_create(&th2, NULL, playing, (void *) &sock);
+                int health = 100; //initialisasi health =100
+                while(1)
+                {
+                    read(sock, &health, sizeof(health));
+                    if(health == -1) break; //permainan berhenti
+                    printf("Health: %d\n", health);
+                }
+                pthread_cancel(th2);
+                bool cek;
+                read(sock, &cek, sizeof(cek));
+                if(cek) printf("Game berakhir kamu menang\n");
+                else printf("Game berakhir kamu kalah\n");
+                tcsetattr(0, TCSANOW, &prev);
+                goto screen2;
+            }
+            else
+            {
+                printf("invalid input\n"); //jika user memasukkan nilai yg salah pada screen 2 maka akan muncul peringatan invalid input
+                goto screen2;              
+            }
+            
+        }
+        else
+        {
+            printf("login failed\n"); // jika user memasukkan nilai yg slah pada screen 1 maka akan muncul peringatan login failed
+            goto screen1;
+        }
+    }
+    /*fungsi menampilkan usaat melakukan register*/
+    else if(strcmp(cmd, "register") == 0)
+    {
+        strcpy(username, "r ");
+        printf("Username : ");
+        getchar();
+        scanf("%[^\n]", temp);
+        strcat(username, temp);
+        printf("Password : ");
+        getchar();
+        scanf("%[^\n]", pass);
+        strcat(username, "\t");
+        strcat(username, pass);
+        send(sock, username, strlen(username), 0);
+        printf("register success\n");
+        goto screen1;
+    }
+    else
+    {
+        printf("invalid input\n"); 
+        goto screen1;
+    }
+    return 0;
+}
+```
+b). tapserver
+```
+typedef struct akun {
+    char un[1024];
+    char ps[1024];
+} akun;
+
+typedef struct client_serv {
+    int cid;
+    int login;
+} client_serv;
+
+typedef struct player {
+    int cidp, cide;
+    int *healthp, *healthe;
+} player;
+
+akun list_akun[100];
+bool akun_cek, file_cek, conn_cek;
+int conn, akun_n;
+
+/*fungsi untuk mempersiapkan permainan*/
+void *ready(void *arg)
+{
+    client_serv cl = *(client_serv *) arg;
+    int cid = cl.cid;
+    int log = cl.login;
+    if(log)
+    {
+        screen1:;
+        char data[1024], un[1024], ps[1024], kode;
+        memset(data, 0, sizeof(data));
+        read(cid, data, sizeof(data)); //kode username password
+        kode = data[0];
+        int id = 0;
+        for(int i = 2; i < strlen(data); i++)
+        {
+            if(data[i] == '\t') break;
+            un[id] = data[i];
+            id++;
+        }
+        //un[id] = '\0';
+        int id2 = 0;
+        id += 3;
+        for(int j = id; j < strlen(data); j++)
+        {
+            ps[id2] = data[j];
+            id2++;
+        }
+        //ps[id2] = '\0';
+        //printf("debug: %s - %s\n", un, ps);
+        /*untuk melakukan validasi data*/
+        if(kode == 'l')
+        {
+            bool done = 0;
+            while(akun_cek);
+            for(int i = 0; i < akun_n; i++)
+            {
+                if((strcmp(un, list_akun[i].un) == 0) && (strcmp(ps, list_akun[i].ps) == 0))
+                {
+                    done = 1;
+                    break;
+                }
+            }
+            send(cid, &done, sizeof(done), 0);
+            if(done) printf("Auth success\n");
+            else
+            {
+                printf("Auth Failed\n");
+                goto screen1;
+            }
+        }
+        /*fungsi untuk mmembuat dan menyimpan user beserta password di akun.txt*/
+        else if(kode == 'r')
+        {
+            akun_cek = 1;
+            akun akun_reg;
+            strcpy(akun_reg.un, un);
+            strcpy(akun_reg.ps, ps);
+            list_akun[akun_n] = akun_reg;
+            akun_n++;
+            while(file_cek);
+            file_cek = 1;
+            FILE *fptr = fopen("akun.txt", "a");
+            fprintf(fptr, "%s\t%s\n", un, ps);
+            fclose(fptr);
+            file_cek = 0;
+            akun_cek = 0;
+            printf("Username\tPassword\n");
+            for(int i = 0; i < akun_n; i++)
+            {
+                akun cur = list_akun[i];
+                printf("%s\t%s\n", cur.un, cur.ps);
+            }
+        }
+    }
+    log = 1;
+    char cmdt;
+    read(cid, &cmdt, strlen(&cmdt));
+    if(strcmp(&cmdt, "logout") == 0) goto screen1; //jika user melakukan logout maka server passing info ke client untuk kembali ke screen1
+    //fungsi jika user melakukan find match
+    else if(strcmp(&cmdt, "find") == 0) 
+    {
+        while(conn_cek);
+        conn_cek = 1;
+        conn++;
+        conn_cek = 0;
+        while(conn < 2);
+    }
+    pthread_exit(0); //thread berhenti
+}
+
+/*server menghandle saat permainan berlangsung, jika game sudah dimulai maka health yg 
+   awalnya sdh di initalisasi 100 di client side akan berkurang -10 per-hit-nya*/
+void *play(void *arg)
+{
+    player p = *(player *) arg;
+    int *he = p.healthe;
+    int start = 1;
+    send(p.cidp, &start, sizeof(start), 0);
+    while(1)
+    {
+        char ch;
+        read(p.cidp, &ch, sizeof(ch));
+        *he -= 10;
+        send(p.cide, he, sizeof(*he), 0);
+    }
+}
+/*fungsi ini hanya untuk cek apakah server dan client berhubungan, jika ada koneksi maka 
+game bisa dimulai*/
+/*crop sampai listen itu ta yg exit*/
+int main(int argc, char const *argv[])
+{
+    int c = 0;
+    int server_fd, new_socket, valread;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
+    char buffer[1024] = {0};
+    
+    if((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    {
+        perror("socket failed");
+        exit(0);
+    }
+
+    if(setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)))
+    {
+        perror("setsockopt");
+        exit(0);
+    }
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    if(bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0)
+    {
+        perror("bind failed");
+        exit(0);
+    }
+
+    if(listen(server_fd, 3) < 0)
+    {
+        perror("listen");
+        exit(0);
+    }
+   
+    FILE *fp;
+    char ch, un[1024], ps[1024];
+    int id = 0;
+    fp = fopen("akun.txt", "a+");
+    if(fp == NULL) exit(0);
+    while(fscanf(fp, "%[^\t]\t%[^\n]\n", un, ps) != EOF)
+    {
+        akun akun_baru;
+        strcpy(akun_baru.un, un);
+        strcpy(akun_baru.ps, ps);
+        list_akun[id] = akun_baru;
+        id++;
+    }
+    fclose(fp);
+    akun_n = id;
+    akun_cek = 0;
+    file_cek = 0;
+    conn = 0;
+    conn_cek = 0;
+
+    /*setelah akun yang sdh terverifikasi disimpan, selanjutnya jika ada yg bermain dan melakukan login
+    server bisa mendeteksi apakah akun yg diinput valid atau tidak*/
+    pthread_t th[2];
+    int client[2];
+    for(int i = 0; i < 2; i++)
+    {
+        client[i] = accept(server_fd, (struct sockaddr *) &address, (socklen_t *) &addrlen);
+        if(client[i] < 0)
+        {
+            perror("can't accept client\n");
+            i--;
+            continue;
+        }
+        printf("client accepted\n");
+        client_serv client_baru;
+        client_baru.cid = client[i];
+        client_baru.login = 1;
+        pthread_create(&th[i], NULL, ready, (void *) &client_baru);
+    }
+    /*fungsi yg menangani saat permainann berlangsung, serta menantukan pemain yg mana yg kalah dan yg menang*/
+    while(1)
+    {
+        bool player1_cek = 0;
+        bool player2_cek = 0;
+        int health1 = 100;
+        int health2 = 100;
+        player player1, player2;
+        player1.cidp = client[0];
+        player1.cide = client[1];
+        player1.healthp = &health1;
+        player1.healthe = &health2;
+        player2.cidp = client[1];
+        player2.cide = client[0];
+        player2.healthp = &health2;
+        player2.healthe = &health1;
+        pthread_create(&th[0], NULL, play, (void *) &player1);
+        pthread_create(&th[1], NULL, play, (void *) &player2);
+        while(1) if(health1 <= 0 || health2 <= 0) break;
+        pthread_cancel(th[0]);
+        pthread_cancel(th[1]);
+        int fin = -1, win = 1, lose = 0;
+        send(client[0], &fin, sizeof(fin), 0);
+        send(client[1], &fin, sizeof(fin), 0);
+        conn -= 2;
+        if(health1 <= 0)
+        {
+            send(client[0], &lose, sizeof(lose), 0);
+            send(client[1], &win, sizeof(win), 0);
+        }
+        else if(health2 <= 0)
+        {
+            send(client[0], &win, sizeof(win), 0);
+            send(client[1], &lose, sizeof(lose), 0);
+        }
+        for(int i = 0; i < 2; i++)
+        {
+            client_serv p;
+            p.cid = client[i];
+            p.login = 1;
+            pthread_create(&th[i], NULL, ready, (void *) &p);
+        }
+        pthread_join(th[0], NULL);
+        pthread_join(th[1], NULL);
+    }
+    return 0;
+}
+```
+Catatan : Program yang kami buat hanya dapat dimainkan oleh dua(2) pemain dan tidak bisa lebih.
+
 ### JAWABAN SOAL NOMOR TIGA
 + [soal3.c](https://github.com/stchffh/SoalShiftSISOP20_modul3_E03/blob/master/nomor3/soal3.c)
 
@@ -93,13 +518,14 @@ else
   folderFinish[x] += 32;
 }
 ```
-- membuat folder sesuai extension serta jika folder belum ada
+- untuk mengambil extension
 ```
-if(mkdir(folderFinish, 0777) == -1); 
-```
-- membuat path tujuan yg source nya diambil dari argumen fungsi
-```
-char pathFinish[10000]; 
+if(mkdir(folderFinish, 0777) == -1); //bikin folder sesuai ext, jika folder blm ada
+   char pathFinish[10000]; //membuat path tujuan yg source nya diambil dari argumen fungsi
+   snprintf(pathFinish, 10000, "%s/%s/%s", cwd, folderFinish, filename((char *)arg));
+   moveFile((char *)arg, pathFinish);
+   return NULL;
+}
 ```
 - fungsi untuk menjalankan perintah *
 ```
@@ -119,8 +545,15 @@ else
   folderFinish[x] += 32;
 }
 ```
-- fungsi untuk menjalankan perintah -d
+- untuk mengambil extension
 ```
+if(mkdir(folderFinish, 0777) == -1); //bikin folder sesuai ext, jika folder blm ada
+   char pathFinish[10000]; //membuat path tujuan yg source nya diambil dari argumen fungsi
+   char pathStart[10000]; //membuat path awal yg source nya diambil dari argumen fungsi
+   snprintf(pathStart, 10000, "%s/%s", cwd, (char *)arg);
+   snprintf(pathFinish, 10000, "%s/%s/%s", cwd, folderFinish, filename((char *)arg));
+   moveFile(pathStart, pathFinish);
+   return NULL;
 }
 
 void* command_d(void *arg)
@@ -139,7 +572,14 @@ void* command_d(void *arg)
     folderFinish[x] += 32;
 }
 
-
+    /*ambil extension*/                    
+    if(mkdir(folderFinish, 0777) == -1); //bikin folder sesuai ext, jika folder blm ada
+    char pathFinish[10000]; //membuat path tujuan yg source nya diambil dari argumen fungsi
+    char pathStart[10000]; //membuat path awal yg source nya diambil dari argumen fungsi
+    snprintf(pathStart, 10000, "%s/%s", tempcwd, (char *)arg);
+    snprintf(pathFinish, 10000, "%s/%s/%s", cwd, folderFinish, filename((char *)arg));
+    moveFile(pathStart, pathFinish);
+    return NULL;
 }
 ```
 - program utama
@@ -218,9 +658,7 @@ else if(!strcmp(argv[1], "-d"))
    }
 return 0;
 }
-
 ```
-Jadi jika disimpulkan codingan dari no 3 ini akan mengkategorian file/directory sesuai command , disini thread yg terbentuk sesuai dengan command, apabila command -f maka thread yg akan terbentuk sebanyak argumen nama file yg diinput setelahnya, jika command -d maka thread akan terbentuk sebanyak directory yg akan dikategorisasikan, jika command * maka thread yg akan terbentuk sebanding dengan banyak file yg ada di cwd.
 
 ### JAWABAN SOAL NOMOR EMPAT
 + [soal4a.c](https://github.com/stchffh/SoalShiftSISOP20_modul3_E03/blob/master/nomor4/soal4a.c)
@@ -394,50 +832,41 @@ void *buat_factorial()
 ```
 
 c). SOAL 4C
-	```
-     #define baca   0   //membaca ujung pipe          
-     #define tulis  1   //menulis ujung pipe           
-     #define input  0   //fd standar input
-     #define output 1   //fd standar output
+```
+#define baca   0               
+#define tulis  1               
+#define input  0               
+#define output 1  
 
-     int main(){
-        int p1,p2,pfd[2];
-
-        //Membuat pipe           
-        if(pipe(pfd)==-1){                              
-            perror(" ");
-            exit(-1);}
-
-        //Membuat proses anak pertama
-        if ((p1=fork())==-1){
-            perror(" ");
-            exit(-1);}
-
-        //Didalam parent
-        if (p1!=0){
-            //Membuat proses anak kedua
-            if((p2=fork())==-1){
-                perror(" ");
-                exit(-1);}
-            //Masih didalam parent
-            if(p2!=0){
-                close(pfd[baca]);  //menutup pipe di parent   
-                close(pfd[tulis]); //menyimpan file descriptor   
-                wait((int*)0);     //menunggu proses anak mati   
-                wait((int*)0);}
-            //Didalam proses anak kedua//    
-            else{
-                close(input);  //menutup standar input         
-                dup(pfd[baca]); //membaca akhir pipe agar menjadi standar input  
-                close(pfd[baca]);  //menghapus I/O yang tidak diperlukan
-                close(pfd[tulis]);   
-                 execl("/usr/bin/wc","wc","-l",NULL);}} //menghitung banyak file dan folder
-        //Didalam proses anak pertama         
-        else{
-            close(output); //menutup standar output           
-            dup(pfd[tulis]);  //menulis akhir pipe agar menjadi standar output    
-            close(pfd[baca]);  //menghapus I/O yang tidak diperlukan   
-            close(pfd[tulis]);     
-            execl("/bin/ls","ls","/home/oktarizka156/",NULL);} //mengeluarkan hasil banyak file dan folder pada direktori
-        exit (0);}
-	```
+int main(){
+int p1,p2,pfd[2];            
+if(pipe(pfd)==-1){                              
+   perror(" ");
+   exit(-1);}
+if ((p1=fork())==-1){
+     perror(" ");
+     exit(-1);}
+if (p1!=0){
+   if((p2=fork())==-1){
+      	perror(" ");
+        exit(-1);}
+   if(p2!=0){
+        close(pfd[baca]);      
+        close(pfd[tulis]);     
+        wait((int*)0);        
+        wait((int*)0);}
+    else{
+       	close(input);           
+        dup(pfd[baca]);      
+        close(pfd[baca]);    
+        close(pfd[tulis]);   
+        execl("/usr/bin/wc","wc","-l",NULL);}}
+else{
+     close(output);           
+     dup(pfd[tulis]);      
+     close(pfd[baca]);     
+     close(pfd[tulis]);     
+     execl("/bin/ls","ls","/home/oktarizka156/",NULL);}
+exit (0);}
+```
+Pertama mendeklarasikan array pipe sebesar 2, lalu mendeklarasikan char yang berisi string perintah. Kemudian memanggil fungsi fork() untuk membuat child process. Setelah itu gunakan fungsi wait() agar child process selesai terlebih dahulu. Pada perintah wc -l gunakan fungsi dup sehingga read end of pipe menjadi stdin, sedangkan pada perintah ls gunakan fungsi dup sehingga write end of pipe menjadi stdout.
